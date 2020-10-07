@@ -2,6 +2,14 @@
 
 import sys
 
+LDI = 0b10000010
+PRN = 0b01000111
+ADD = 0b10100000
+MUL = 0b10100010
+PUSH = 0b01000101
+POP = 0b01000110
+HLT = 0b00000001
+
 
 class CPU:
     """Main CPU class."""
@@ -10,48 +18,35 @@ class CPU:
         """Construct a new CPU."""
         self.ram = [0] * 256
         self.reg = [0] * 8
+        self.reg[7] = 0xF4
         self.pc = 0
 
     def load(self):
         """Load a program into memory."""
 
-        # For now, we've just hardcoded a program:
-
-        # program = [
-        #     # From print8.ls8
-        #     0b10000010,  # LDI R0,8
-        #     0b00000000,
-        #     0b00001000,
-        #     0b01000111,  # PRN R0
-        #     0b00000000,
-        #     0b00000001  # HLT
-        # ]
-
-        # for instruction in program:
-        #     self.ram[address] = instruction
-        #     address += 1
-        address = 0
-
         if (len(sys.argv)) != 2:
-            print("usage: python3 ls8.py <second_file_name>")
+            print("usage: python3 ls8.py filename")
             sys.exit(1)
 
+        address = 0
+        filename = sys.argv[1]
+
         try:
-            with open(sys.argv[1]) as f:
+            with open(filename) as f:
                 for line in f:
-                    comment_split = line.split('#')
-                    num = comment_split[0].strip()
-                    try:
-                        val = int(num, 2)
-                    except ValueError:
+                    possible_number = line[:line.find('#')]
+                    if possible_number == '':
                         continue
 
-                    self.ram[address] = val
+                    instruction = int(possible_number, 2)
+
+                    self.ram[address] = instruction
+
                     address += 1
 
         except FileNotFoundError:
             print(f'Error from {sys.argv[0]}: {sys.argv[1]} not found')
-            sys.exit(2)
+            sys.exit()
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
@@ -92,9 +87,6 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        LDI = 0b10000010
-        PRN = 0b01000111
-        HLT = 0b00000001
 
         running = True
 
@@ -116,6 +108,22 @@ class CPU:
             elif ir == HLT:
                 running = False
                 self.pc += 1
+
+            elif ir == PUSH:
+                self.reg[7] -= 1
+                reg_idx = self.ram[op_a]
+                value = self.reg[reg_idx]
+
+                SP = self.reg[7]
+                self.ram[SP] = value
+
+            elif ir == POP:
+                SP = self.reg[7]
+                value = self.ram[SP]
+
+                reg_idx = self.ram[op_a]
+                self.reg[reg_idx] = value
+                self.reg[7] += 1
 
             else:
                 print('unknown command!')
