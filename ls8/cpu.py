@@ -18,7 +18,7 @@ class CPU:
         """Construct a new CPU."""
         self.ram = [0] * 256
         self.reg = [0] * 8
-        self.reg[7] = 0xF4
+        self.reg[7] = 0xf4
         self.pc = 0
 
     def load(self):
@@ -29,10 +29,9 @@ class CPU:
             sys.exit(1)
 
         address = 0
-        filename = sys.argv[1]
 
         try:
-            with open(filename) as f:
+            with open(sys.argv[1]) as f:
                 for line in f:
                     possible_number = line[:line.find('#')]
                     if possible_number == '':
@@ -93,6 +92,8 @@ class CPU:
         while running:
             ir = self.ram_read(self.pc)
 
+            num_args = ir >> 6
+
             op_a = self.ram_read(self.pc + 1)
 
             op_b = self.ram_read(self.pc + 2)
@@ -105,25 +106,43 @@ class CPU:
                 print(self.reg[op_a])
                 self.pc += 2
 
+            elif ir == ADD:
+                reg_a = self.ram[self.pc + 1]
+                reg_b = self.ram[self.pc + 2]
+
+                self.alu("MUL", reg_a, reg_b)
+                self.pc += 3
+
+            elif ir == MUL:
+                reg_a = self.ram[self.pc + 1]
+                reg_b = self.ram[self.pc + 2]
+
+                self.alu("MUL", reg_a, reg_b)
+                self.pc += 3
+
             elif ir == HLT:
                 running = False
                 self.pc += 1
 
             elif ir == PUSH:
                 self.reg[7] -= 1
-                reg_idx = self.ram[op_a]
+                reg_idx = self.ram[self.pc + 1]
                 value = self.reg[reg_idx]
 
                 SP = self.reg[7]
                 self.ram[SP] = value
 
+                self.pc += 2
+
             elif ir == POP:
                 SP = self.reg[7]
                 value = self.ram[SP]
 
-                reg_idx = self.ram[op_a]
+                reg_idx = self.ram[self.pc + 1]
                 self.reg[reg_idx] = value
                 self.reg[7] += 1
+
+                self.pc += 2
 
             else:
                 print('unknown command!')
