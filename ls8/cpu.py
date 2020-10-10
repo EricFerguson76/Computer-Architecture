@@ -8,6 +8,8 @@ ADD = 0b10100000
 MUL = 0b10100010
 PUSH = 0b01000101
 POP = 0b01000110
+CALL = 0b01010000
+RET = 0b00010001
 HLT = 0b00000001
 
 
@@ -18,7 +20,7 @@ class CPU:
         """Construct a new CPU."""
         self.ram = [0] * 256
         self.reg = [0] * 8
-        self.reg[7] = 0xf4
+        self.reg[7] = 0xF4
         self.pc = 0
 
     def load(self):
@@ -92,8 +94,6 @@ class CPU:
         while running:
             ir = self.ram_read(self.pc)
 
-            num_args = ir >> 6
-
             op_a = self.ram_read(self.pc + 1)
 
             op_b = self.ram_read(self.pc + 2)
@@ -110,7 +110,7 @@ class CPU:
                 reg_a = self.ram[self.pc + 1]
                 reg_b = self.ram[self.pc + 2]
 
-                self.alu("MUL", reg_a, reg_b)
+                self.alu("ADD", reg_a, reg_b)
                 self.pc += 3
 
             elif ir == MUL:
@@ -122,7 +122,6 @@ class CPU:
 
             elif ir == HLT:
                 running = False
-                self.pc += 1
 
             elif ir == PUSH:
                 self.reg[7] -= 1
@@ -144,6 +143,33 @@ class CPU:
 
                 self.pc += 2
 
+            elif ir == CALL:
+                return_address = self.pc + 2
+                self.reg[7] -= 1
+                self.ram[self.reg[7]] = return_address
+
+                reg_idx = self.ram[self.pc + 1]
+
+                subroutine_address = self.reg[reg_idx]
+                self.pc = subroutine_address
+
+            elif ir == RET:
+                return_address = self.ram[self.reg[7]]
+
+                self.reg[7] += 1
+
+                self.pc = return_address
+
             else:
                 print('unknown command!')
                 running = False
+
+            if ir == 0:
+                self.pc += ((ir >> 6) & 0b11) + 1
+
+            else:
+                if ir == 1:
+                    self.pc += ((ir >> 4) & 0b1) + 1
+            # sets_pc = ((ir >> 4) & 0b0001) == 1
+            # if not sets_pc:
+            #     self.pc += num_args + 1
