@@ -22,6 +22,15 @@ class CPU:
         self.reg = [0] * 8
         self.reg[7] = 0xF4
         self.pc = 0
+        self.branchtable = {
+            HLT: self.hlt,
+            LDI: self.ldi,
+            PRN: self.prn,
+            PUSH: self.push,
+            POP: self.pop,
+            CALL: self.call,
+            RET: self.ret
+        }
 
     def load(self):
         """Load a program into memory."""
@@ -52,13 +61,104 @@ class CPU:
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
 
-        if op == "ADD":
+        if op == ADD:
             self.reg[reg_a] += self.reg[reg_b]
 
-        elif op == "MUL":
+        elif op == MUL:
             self.reg[reg_a] *= self.reg[reg_b]
         else:
             raise Exception("Unsupported ALU operation")
+
+    def ram_read(self, MAR):
+        return self.ram[MAR]
+
+    def ram_write(self, MAR, MDR):
+        self.ram[MAR] = MDR
+
+    def hlt(self, op_a, op_b):
+        self.running = False
+
+    def ldi(self, op_a, op_b):
+        self.reg[op_a] = op_b
+
+    def prn(self, op_a, op_b):
+        print(self.reg[op_a])
+
+    def push(self, op_a, op_b):
+        self.reg[7] -= 1
+        value = self.reg[op_a]
+        SP = self.reg[7]
+        self.ram_write(SP, value)
+
+    def pop(self, op_a, op_b):
+        SP = self.reg[7]
+        value = self.ram_read(SP)
+        self.reg[op_a] = value
+        self.reg[7] += 1
+
+    def call(self, op_a, op_b):
+        return_address = self.pc + 2
+
+        self.reg[7] -= 1
+        SP = self.reg[7]
+        self.ram[SP] = return_address
+
+        reg_idx = op_a
+        subroutine_address = self.reg[reg_idx]
+
+        self.pc = subroutine_address
+
+    def ret(self, op_a, op_b):
+        SP = self.reg[7]
+        return_address = self.ram[SP]
+
+        self.pc = return_address
+
+        self.reg[7] += 1
+
+    def run(self):
+        """Run the CPU."""
+
+        self.running = True
+
+        while self.running:
+            ir = self.ram_read(self.pc)
+
+            op_a = self.ram_read(self.pc + 1)
+
+            op_b = self.ram_read(self.pc + 2)
+
+            num_operands = ir >> 6
+            self.pc += 1 + num_operands
+
+            is_alu_op = ((ir >> 5) & 0b001) == 1
+
+            if is_alu_op:
+                self.alu(ir, op_a, op_b)
+
+            else:
+                self.branchtable[ir](op_a, op_b)
+
+            # elif ir == CALL:
+            #     return_address = self.pc + 2
+            #     self.reg[7] -= 1
+            #     self.ram[self.reg[7]] = return_address
+
+            #     reg_idx = self.ram[self.pc + 1]
+
+            #     subroutine_address = self.reg[reg_idx]
+            #     self.pc = subroutine_address
+
+            # elif ir == RET:
+            #     return_address = self.ram[self.reg[7]]
+
+            #     self.reg[7] += 1
+
+            #     self.pc = return_address
+
+            # else:
+            #     print('unknown command!')
+            #     running = False
 
     def trace(self):
         """
@@ -79,97 +179,3 @@ class CPU:
             print(" %02X" % self.reg[i], end='')
 
         print()
-
-    def ram_read(self, address):
-        return self.ram[address]
-
-    def ram_write(self, write, address):
-        self.ram[address] = write
-
-    def run(self):
-        """Run the CPU."""
-
-        running = True
-
-        while running:
-            ir = self.ram_read(self.pc)
-
-            op_a = self.ram_read(self.pc + 1)
-
-            op_b = self.ram_read(self.pc + 2)
-
-            if ir == LDI:
-                self.reg[op_a] = op_b
-                self.pc += 3
-
-            elif ir == PRN:
-                print(self.reg[op_a])
-                self.pc += 2
-
-            elif ir == ADD:
-                reg_a = self.ram[self.pc + 1]
-                reg_b = self.ram[self.pc + 2]
-
-                self.alu("ADD", reg_a, reg_b)
-                self.pc += 3
-
-            elif ir == MUL:
-                reg_a = self.ram[self.pc + 1]
-                reg_b = self.ram[self.pc + 2]
-
-                self.alu("MUL", reg_a, reg_b)
-                self.pc += 3
-
-            elif ir == HLT:
-                running = False
-
-            elif ir == PUSH:
-                self.reg[7] -= 1
-                reg_idx = self.ram[self.pc + 1]
-                value = self.reg[reg_idx]
-
-                SP = self.reg[7]
-                self.ram[SP] = value
-
-                self.pc += 2
-
-            elif ir == POP:
-                SP = self.reg[7]
-                value = self.ram[SP]
-
-                reg_idx = self.ram[self.pc + 1]
-                self.reg[reg_idx] = value
-                self.reg[7] += 1
-
-                self.pc += 2
-
-            elif ir == CALL:
-                return_address = self.pc + 2
-                self.reg[7] -= 1
-                self.ram[self.reg[7]] = return_address
-
-                reg_idx = self.ram[self.pc + 1]
-
-                subroutine_address = self.reg[reg_idx]
-                self.pc = subroutine_address
-
-            elif ir == RET:
-                return_address = self.ram[self.reg[7]]
-
-                self.reg[7] += 1
-
-                self.pc = return_address
-
-            else:
-                print('unknown command!')
-                running = False
-
-            if ir == 0:
-                self.pc += ((ir >> 6) & 0b11) + 1
-
-            else:
-                if ir == 1:
-                    self.pc += ((ir >> 4) & 0b1) + 1
-            # sets_pc = ((ir >> 4) & 0b0001) == 1
-            # if not sets_pc:
-            #     self.pc += num_args + 1
